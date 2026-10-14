@@ -1,0 +1,89 @@
+{
+  "name": "inline-autocomplete",
+  "displayName": "Inline Autocomplete",
+  "description": "AI inline code completions",
+  "publisher": "KaneTu",
+  "author": {
+    "name": "Kane Tu",
+    "email": "kanetu731@gmail.com"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/kanetu/inline-autocomplete"
+  },
+  "version": "0.0.1",
+  "engines": {
+    "vscode": "^1.140.0"
+  },
+  "categories": [
+    "Programming Languages"
+  ],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "icon": "icon.png",
+  "main": "./dist/extension.js",
+  "contributes": {
+    "configuration": {
+      "title": "Gemini Autocomplete",
+      "properties": {
+        "geminiAutocomplete.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable or disable Gemini inline autocomplete"
+        },
+        "geminiAutocomplete.apiKey": {
+          "type": "string",
+          "default": "",
+          "description": "Your Google Gemini API Key"
+        },
+        "geminiAutocomplete.model": {
+          "type": "string",
+          "default": "gemini-3.5-flash-lite",
+          "description": "Gemini model identifier to use for code autocompletion",
+          "enum": [
+            "gemini-3.5-flash-lite"
+          ],
+          "enumDescriptions": [
+            "Fastest and lowest latency, ideal for inline completion (Recommended)"
+          ]
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run package",
+    "compile": "npm run check-types && npm run lint && node esbuild.js",
+    "watch": "npm-run-all -p watch:*",
+    "watch:esbuild": "node esbuild.js --watch",
+    "watch:tsc": "tsc --noEmit --watch --project tsconfig.json",
+    "package": "npm run check-types && npm run lint && node esbuild.js --production",
+    "compile-tests": "tsc -p . --outDir out",
+    "watch-tests": "tsc -p . -w --outDir out",
+    "pretest": "npm run compile-tests && npm run compile && npm run lint",
+    "check-types": "tsc --noEmit",
+    "lint": "eslint src",
+    "test": "vscode-test"
+  },
+  "devDependencies": {
+    "@types/mocha": "^10.0.10",
+    "@types/node": "24.x",
+    "@types/vscode": "^1.140.0",
+    "@vscode/test-cli": "^0.0.15",
+    "@vscode/test-electron": "^3.0.0",
+    "esbuild": "^0.28.1",
+    "eslint": "^10.5.0",
+    "npm-run-all": "^4.1.5",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.61.1",
+    "@google/genai": "^2.29.1"
+  },
+  "overrides": {
+    "diff": "^8.0.4",
+    "serialize-javascript": "^7.0.6"
+  },
+  "dependencies": {},
+  "volta": {
+    "node": "24.21.0"
+  }
+}
