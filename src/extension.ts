@@ -48,7 +48,7 @@ export function activate(context: vscode.ExtensionContext) {
       const config = vscode.workspace.getConfiguration('geminiAutocomplete');
       const isEnabled = config.get<boolean>('enabled', true);
       const apiKey = config.get<string>('apiKey');
-      const model = config.get<string>('model');
+      const model = config.get<string>('model') || 'gemini-3.5-flash-lite';
 
       if (!isEnabled) {
         return []
@@ -105,7 +105,6 @@ export function activate(context: vscode.ExtensionContext) {
       try {
         const ai = new GoogleGenAI({ apiKey });
 
-        // Language-locked System Instruction
         const systemInstruction = `You are an ultra-fast inline code autocompletion engine specialized in the "${languageId}" programming language.
 The user provides <LANGUAGE>, <PREFIX> (code before cursor), and <SUFFIX> (code after cursor).
 Your sole task is to generate ONLY the exact valid ${languageId} code that fills the gap between <PREFIX> and <SUFFIX>.
@@ -115,28 +114,23 @@ STRICT RULES:
 2. Output RAW plain code ONLY.
 3. NEVER wrap code in markdown blocks (\`\`\` or \`\`\`${languageId}).
 4. NEVER repeat code from <PREFIX> or <SUFFIX>.
-5. Generate only the immediate statement, expression, or block needed. If no valid completion is possible, return nothing.`;
+5. COMMENT HANDLING:
+   - If <PREFIX> ends with a comment initiator (e.g. "//", "/*", "#", "--"):
+     a) Do NOT output duplicate comment markers (do not output "//" again).
+     b) Complete the thought of the comment on the current line.
+     c) Then break into the next line(s) and provide the relevant, functional ${languageId} code implementation that fulfills that comment.
+6. Generate only the immediate relevant statement, expression, or function block needed. If no valid completion is possible, return nothing.`;
 
-        // Prompt with explicit language tag
-        const prompt = `<LANGUAGE>
-${languageId}
-</LANGUAGE>
-<PREFIX>
-${prefix}
-</PREFIX>
-<SUFFIX>
-${suffix}
-</SUFFIX>
-Missing ${languageId} code:`;
+        const prompt = `<LANGUAGE>\n${languageId}\n</LANGUAGE>\n<PREFIX>\n${prefix}\n</PREFIX>\n<SUFFIX>\n${suffix}\n</SUFFIX>\nMissing ${languageId} code:`;
 
         const response = await ai.models.generateContent({
-          model: 'gemini-3.5-flash-lite',
+          model: model,
           contents: prompt,
           config: {
             systemInstruction,
             temperature: 0.1,
-            maxOutputTokens: 64,
-            stopSequences: ['\n\n', '</PREFIX>', '<SUFFIX>', '<LANGUAGE>']
+            maxOutputTokens: 128,
+            stopSequences: ['</PREFIX>', '<SUFFIX>', '<LANGUAGE>']
           }
         });
 
@@ -146,17 +140,22 @@ Missing ${languageId} code:`;
 
         // 2. Read and update token metrics
         if (response.usageMetadata) {
-          const { promptTokenCount = 0, candidatesTokenCount = 0, totalTokenCount = 0 } = response.usageMetadata;
+          const {  totalTokenCount = 0 } = response.usageMetadata;
           sessionTotalTokens += totalTokenCount;
-
-          // Update status bar UI
-          statusBarItem.text = `$(sparkle) Last: ${totalTokenCount} | Total: ${sessionTotalTokens}`;
-          statusBarItem.tooltip = `Last Call:\n• Input: ${promptTokenCount}\n• Output: ${candidatesTokenCount}\n• Total: ${totalTokenCount}\n\nSession Total: ${sessionTotalTokens}`;
+          updateStatusBar(totalTokenCount)
         }
 
         let suggestion = response.text || '';
         // Clean markdown backticks if model includes them
         suggestion = suggestion.replace(/^```[a-zA-Z]*\n?/, '').replace(/\n?```$/, '');
+
+        // Clean accidental leading comment markers if prefix already ends with one
+        const trimmedPrefix = prefix.trimEnd();
+        if (trimmedPrefix.endsWith('//') && suggestion.trimStart().startsWith('//')) {
+          suggestion = suggestion.replace(/^\s*\/\/\s?/, ' ');
+        } else if (trimmedPrefix.endsWith('#') && suggestion.trimStart().startsWith('#')) {
+          suggestion = suggestion.replace(/^\s*#\s?/, ' ');
+        }
 
         if (!suggestion.trim()) {
           return [];
